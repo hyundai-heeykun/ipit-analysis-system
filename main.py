@@ -1,0 +1,93 @@
+# -*- coding: utf-8 -*-
+from fastapi import FastAPI, Depends, HTTPException
+from pydantic import BaseModel
+import sqlite3
+import os
+from typing import Dict, Any
+
+# 앞서 분리한 커스텀 모듈 임포트
+from gpt_engine import ask_gpt_for_spec, generate_commentary_ipit
+from db_handler import query_db_with_spec_ipit
+from utils import preprocess_question, summarize_result_for_ai_ipit
+
+app = FastAPI(title="IPIT 가입자 상태 분석 시스템 API")
+
+# DB 경로 설정 (환경변수 혹은 기본값)
+DB_PATH = os.getenv("IPIT_DB_PATH", "subscriptions.db")
+
+# ======================
+# DB 연결 의존성
+# ======================
+def get_db():
+    """SQLite DB 연결을 생성하고 반환합니다."""
+    if not os.path.exists(DB_PATH):
+        raise HTTPException(status_code=500, detail=f"DB 파일을 찾을 수 없습니다: {DB_PATH}")
+    
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row  # 컬럼명으로 접근 가능하게 설정
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+# ======================
+# API 요청 모델
+# ======================
+class AskRequest(BaseModel):
+    question: str
+
+# ======================
+# 메인 비즈니스 로직 API
+# ======================
+@app.post("/api/ask")
+def ask_api(body: AskRequest, db: sqlite3.Connection = Depends(get_db)):
+    question_raw = body.question.strip()
+    
+    if not question_raw:
+        raise HTTPException(status_code=400, detail="질문을 입력해주세요.")
+
+    try:
+        # 1) 자연어 전처리 (utils.py)
+        # "올해", "작년" 등의 키워드를 분석하여 연도 힌트 추출
+        processed_q, year_hint = preprocess_question(question_raw)
+        
+        # 2) GPT를 이용한 쿼리 스펙 생성 (gpt_engine.py)
+        # 질문을 분석하여 metric, group_by, filters 등의 JSON 객체 반환
+        spec = ask_gpt_for_spec(processed_q)
+        
+        # 전처리에서 추출된 연도 정보가 있다면 스펙에 강제 반영
+        if year_hint:
+            spec["year"] = year_hint
+        
+        # 3) DB 조회 및 데이터 가공 (db_handler.py)
+        # 요청하신 '신규/해지/순증' 로직이 반영된 SQL 실행
+        result = query_db_with_spec_ipit(spec, db)
+
+        # 4) 분석 결과에 대한 AI 해설 생성
+        # 데이터가 존재할 경우에만 요약본을 만들어 GPT에게 전달
+        if result.get("table") and len(result["table"]) > 0:
+            summary_text = summarize_result_for_ai_ipit(spec, result)
+            commentary = generate_commentary_ipit(question_raw, summary_text)
+            result["analysis"] = commentary
+        else:
+            result["analysis"] = "조회된 데이터가 없어 분석 내용을 생성할 수 없습니다."
+
+        return result
+
+    except Exception as e:
+        # 실무 환경에서는 로그 파일에 상세 에러를 기록하는 것이 좋습니다.
+        print(f"Error occurred: {str(e)}")
+        return {
+            "error": True,
+            "analysis": f"처리 중 오류가 발생했습니다: {str(e)}",
+            "labels": [],
+            "datasets": []
+        }
+
+# ======================
+# 로컬 실행 설정
+# ======================
+if __name__ == "__main__":
+    import uvicorn
+    # 내부망 서버 환경에 맞춰 host와 port 설정
+    uvicorn.run(app, host="0.0.0.0", port=8000)

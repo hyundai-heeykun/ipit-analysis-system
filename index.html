@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>IPIT 결과 리포트 (ipit_rslt_rpt)</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f6f7f9;
+      margin: 0;
+      padding: 0;
+    }
+
+    header {
+      background: #1f2937;
+      color: #fff;
+      padding: 16px 24px;
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    main {
+      padding: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .question-box {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .question-box input {
+      flex: 1;
+      padding: 12px;
+      font-size: 16px;
+    }
+
+    .question-box button {
+      padding: 12px 20px;
+      font-size: 16px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    .question-box button:hover {
+      background: #1d4ed8;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+
+    .card h2 {
+      margin-top: 0;
+      font-size: 18px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 8px;
+    }
+
+    #analysis {
+      white-space: pre-line;
+      line-height: 1.6;
+    }
+
+    .loading {
+      color: #666;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  IPIT 결과 리포트 대시보드 (ipit_rslt_rpt)
+</header>
+
+<main>
+
+  <!-- 질문 입력 -->
+  <div class="card">
+    <div class="question-box">
+      <input
+        id="questionInput"
+        type="text"
+        placeholder="예: 2025년 1월 신규 가입 고객 수 보여줘"
+      />
+      <button onclick="ask()">조회</button>
+    </div>
+  </div>
+
+  <!-- 차트 영역 -->
+  <div class="card">
+    <h2>📊 데이터 시각화</h2>
+    <canvas id="resultChart"></canvas>
+  </div>
+
+  <!-- AI 해설 -->
+  <div class="card">
+    <h2>🤖 AI 해설</h2>
+    <div id="analysis" class="loading">
+      질문을 입력하면 분석 결과가 표시됩니다.
+    </div>
+  </div>
+
+</main>
+
+<script>
+  let chartInstance = null;
+
+  // [추가] 엔터 키 입력 시 ask() 함수 호출 이벤트 리스너
+  document.addEventListener("DOMContentLoaded", function() {
+    const input = document.getElementById("questionInput");
+    input.addEventListener("keypress", function(event) {
+      if (event.key === "Enter") { // 엔터 키 감지
+        event.preventDefault();    // 기본 폼 동작 방지
+        ask();                     // 조회 함수 호출
+      }
+    });
+  });
+
+  async function ask() {
+    const input = document.getElementById("questionInput");
+    const analysisDiv = document.getElementById("analysis");
+    const question = input.value.trim();
+
+    if (!question) {
+      alert("질문을 입력하세요.");
+      return;
+    }
+
+    analysisDiv.textContent = "분석 중입니다...";
+    analysisDiv.classList.add("loading");
+
+    try {
+      const response = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question })
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(err);
+      }
+
+      const data = await response.json();
+
+      renderChart(data);
+      renderAnalysis(data.analysis);
+
+    } catch (err) {
+      analysisDiv.textContent = "에러 발생: " + err.message;
+    } finally {
+      analysisDiv.classList.remove("loading");
+    }
+  }
+
+  function renderChart(data) {
+    const ctx = document.getElementById("resultChart").getContext("2d");
+
+    if (chartInstance) {
+      chartInstance.destroy();
+    }
+
+    chartInstance = new Chart(ctx, {
+      type: data.chart_type || "line",
+      data: {
+        labels: data.labels || [],
+        datasets: data.datasets || []
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true
+          }
+        }
+      }
+    });
+  }
+
+  function renderAnalysis(text) {
+    const analysisDiv = document.getElementById("analysis");
+    analysisDiv.textContent = text || "해설이 없습니다.";
+  }
+</script>
+
+</body>
+</html>
+
