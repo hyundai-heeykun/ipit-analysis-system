@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+
+from gpt_engine import ask_gpt_for_spec, generate_commentary_ipit
+from db_handler import query_db_with_spec_ipit
+from utils import preprocess_question, summarize_result_for_ai_ipit
+
 from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
 import sqlite3
@@ -67,7 +72,9 @@ def ask_api(body: AskRequest, db: sqlite3.Connection = Depends(get_db)):
         # 데이터가 존재할 경우에만 요약본을 만들어 GPT에게 전달
         if result.get("table") and len(result["table"]) > 0:
             summary_text = summarize_result_for_ai_ipit(spec, result)
-            commentary = generate_commentary_ipit(question_raw, summary_text)
+             
+            # commentary = generate_commentary_ipit(question_raw, summary_text) # gpt_engine.py에서 summary param 인식 불가
+            commentary = generate_commentary_ipit(question_raw, spec, summary_text)
             result["analysis"] = commentary
         else:
             result["analysis"] = "조회된 데이터가 없어 분석 내용을 생성할 수 없습니다."

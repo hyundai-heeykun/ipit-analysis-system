@@ -122,6 +122,19 @@ def query_db_with_spec_ipit(spec: Dict[str, Any], db: sqlite3.Connection) -> Dic
     # --- [SQL 쿼리 조립] ---
     time_label = period_expr(p_col, time_grain)
     where_sql, params = build_where_from_filters(filters)
+
+    # --- [추가: 기간 필터 강제 적용 로직] ---
+    if spec.get("day"):
+        where_sql += f" AND {p_col} = :spec_day"
+        params["spec_day"] = spec["day"]
+    elif spec.get("month"):
+        where_sql += f" AND {p_col} LIKE :spec_month"
+        params["spec_month"] = f"{spec['month']}%"
+    elif spec.get("year"):
+        where_sql += f" AND {p_col} Like :spec_year"
+        params["spec_year"] = f"{spec['year']}%"
+    # -------------------------------------------------
+
     g_col = group_expr(group_by)
 
     if g_col:
@@ -129,6 +142,10 @@ def query_db_with_spec_ipit(spec: Dict[str, Any], db: sqlite3.Connection) -> Dic
     else:
         sql = f"SELECT {time_label} as period, 'Total' as grp, {val_expr} as val FROM subscription {where_sql} GROUP BY period ORDER BY period"
 
+
+    # --- [쿼리 로그 확인] ---
+    print(f"==== [EXECUTING SQL] ====\n{sql}")
+    print(f"==== [PARAMETERS] ====\n{params}\n" + "="*25)
 
     # --- [실행 및 결과 가공] ---
     cur = db.execute(sql, params)
