@@ -9,18 +9,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # 환경 변수에서 프론트엔드 주소를 가져오되, 없으면 로컬 주소를 기본 값으로 사용
 FRONTEND_URL = os.getenv("FRONTED_URL","http://localhost:3000")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        FRONTEND_URL,              # 환경 변수로 지정한 주소
-        "http://127.0.0.1:3000",   # 윈도우 로컬 테스트용
-        "http://localhost:3000"    # 윈도우 로컬 테스트용
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # 이제 'src.' 없이도, 있어도 둘 다 작동하게 됨
 from gpt_engine import ask_gpt_for_spec, generate_commentary_ipit
 from db_handler import query_db_with_spec_ipit
@@ -37,6 +25,18 @@ from db_handler import query_db_with_spec_ipit
 from utils import preprocess_question, summarize_result_for_ai_ipit
 
 app = FastAPI(title="IPIT 가입자 상태 분석 시스템 API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        FRONTEND_URL,              # 환경 변수로 지정한 주소
+        "http://127.0.0.1:3000",   # 윈도우 로컬 테스트용
+        "http://localhost:3000"    # 윈도우 로컬 테스트용
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # DB 경로 설정 (환경변수 혹은 기본값)
 DB_PATH = os.getenv("IPIT_DB_PATH", "subscriptions.db")
