@@ -1,5 +1,27 @@
 # -*- coding: utf-8 -*-
+import sys
+import os
+from fastapi.middleware.cors import CORSMiddleware
 
+# 현재 파일(main.py)이 있는 폴더 경로를 파이썬 경로에 추가
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# 환경 변수에서 프론트엔드 주소를 가져오되, 없으면 로컬 주소를 기본 값으로 사용
+FRONTEND_URL = os.getenv("FRONTED_URL","http://localhost:3000")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        FRONTEND_URL,              # 환경 변수로 지정한 주소
+        "http://127.0.0.1:3000",   # 윈도우 로컬 테스트용
+        "http://localhost:3000"    # 윈도우 로컬 테스트용
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 이제 'src.' 없이도, 있어도 둘 다 작동하게 됨
 from gpt_engine import ask_gpt_for_spec, generate_commentary_ipit
 from db_handler import query_db_with_spec_ipit
 from utils import preprocess_question, summarize_result_for_ai_ipit
@@ -7,7 +29,6 @@ from utils import preprocess_question, summarize_result_for_ai_ipit
 from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
 import sqlite3
-import os
 from typing import Dict, Any
 
 # 앞서 분리한 커스텀 모듈 임포트
